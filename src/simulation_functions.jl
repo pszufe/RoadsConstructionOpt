@@ -38,6 +38,11 @@ function get_nodes(m::MapData)
     return start_node,fin_node
 end
 
+function get_nodesfirstlast(m::MapData)
+    return 1, nv(m.g)
+end
+
+
 function get_route(m::OpenStreetMapX.MapData, w::AbstractMatrix{Float64}, node0::Int64,  node1::Int64)
     f(x, B = agent.fin_node, nodes = m.nodes, vertices = m.n) = OpenStreetMapX.get_distance(x,B,nodes,vertices)/(maximum(values(OpenStreetMapX.SPEED_ROADS_URBAN))/3.6)
     route_indices, route_values = OpenStreetMapX.a_star_algorithm(m.g, node0, node1, w, f)
@@ -65,11 +70,11 @@ end
 
 function create_agents(m::MapData,
                         w::SparseArrays.SparseMatrixCSC{Float64,Int64},
-                        N::Int64)::Vector{Agent}
+                        N::Int64; f_get_nodes::Function=get_nodes)::Vector{Agent}
     buffer = Dict{Tuple{Int64,Int64}, Vector{Agent}}()
     nodes_list = Tuple{Int64,Int64}[]
     for i = 1:N
-        nodes = get_nodes(m)
+        nodes = f_get_nodes(m)
         if i % 2000 == 0
             @info "$i agents created"
         end
@@ -87,7 +92,7 @@ function create_agents(m::MapData,
     return reduce(vcat,[buffer[k] for k in nodes_list])
 end
 
-function get_sim(m::MapData, p::ModelSettings, speeds = OpenStreetMapX.SPEED_ROADS_URBAN)::SimData
+function get_sim(m::MapData, p::ModelSettings, speeds = OpenStreetMapX.SPEED_ROADS_URBAN; f_get_nodes::Function=get_nodes)::SimData
 	velocities = get_velocities(m, speeds)
 	max_densities = get_max_densities(m, p.vehicle_len)
 	a, b = size(m.w)
@@ -95,7 +100,7 @@ function get_sim(m::MapData, p::ModelSettings, speeds = OpenStreetMapX.SPEED_ROA
 	for edge in m.e
   		driving_times[m.v[edge[1]],m.v[edge[2]]] = calculate_driving_time(0, max_densities[m.v[edge[1]],m.v[edge[2]]],m.w[m.v[edge[1]],m.v[edge[2]]],velocities[m.v[edge[1]],m.v[edge[2]]])
    	end
-    agents = create_agents(m, driving_times,p.N)
+    agents = create_agents(m, driving_times,p.N;f_get_nodes)
     return SimData(m, driving_times, velocities, max_densities, agents)
 end
 
